@@ -1,135 +1,66 @@
-"""
-AI_stats_lab.py
-
-Lab: Unsupervised Learning and K-Means Clustering
-
-Topics:
-- Unsupervised learning with unlabeled data
-- Iris dataset without labels
-- Feature standardization
-- K-Means clustering
-- K-Means objective function
-- Elbow method for choosing K
-- Underfitting and overfitting in clustering
-- Distance-based outlier detection
-- Visualization of unlabeled data, clusters, centroids, and elbow curve
-
-Instructions:
-- Implement all functions.
-- Do NOT change function names.
-- Do NOT print inside functions.
-- Return exactly the required formats.
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 
 from sklearn.datasets import load_iris
 from sklearn.cluster import KMeans
 
-
 # ============================================================
 # Question 1: Unlabeled Data and K-Means Clustering
 # ============================================================
 
 def load_iris_unlabeled(feature_indices=(0, 1)):
-    """
-    Load the Iris dataset without labels.
+    iris = load_iris()
 
-    Parameters:
-        feature_indices : tuple
-            Indices of features to use.
-            Default (0, 1) means:
-                sepal length
-                sepal width
+    X = iris.data[:, feature_indices]
+    feature_names = [iris.feature_names[i] for i in feature_indices]
 
-    Returns:
-        A dictionary:
-
-        {
-            "X": feature matrix with selected columns,
-            "feature_names": list of selected feature names
-        }
-
-    Notes:
-        - Do NOT return the class labels.
-        - This is an unsupervised learning setup.
-    """
-    pass
+    return {
+        "X": X,
+        "feature_names": feature_names
+    }
 
 
 def standardize_features(X):
-    """
-    Standardize features to zero mean and unit variance.
+    mean = np.mean(X, axis=0)
+    std = np.std(X, axis=0)
 
-    Parameters:
-        X : NumPy array of shape (n_samples, n_features)
+    std = np.where(std == 0, 1.0, std)
 
-    Returns:
-        A dictionary:
+    X_scaled = (X - mean) / std
 
-        {
-            "X_scaled": standardized feature matrix,
-            "mean": feature-wise mean,
-            "std": feature-wise standard deviation
-        }
-
-    Formula:
-        X_scaled = (X - mean) / std
-
-    Notes:
-        - If any std value is 0, replace it with 1 before division.
-        - This avoids division by zero.
-    """
-    pass
+    return {
+        "X_scaled": X_scaled,
+        "mean": mean,
+        "std": std
+    }
 
 
 def fit_kmeans(X, K, random_state=0, n_init=10):
-    """
-    Fit K-Means clustering on data X.
+    model = KMeans(
+        n_clusters=K,
+        random_state=random_state,
+        n_init=n_init
+    )
 
-    Parameters:
-        X            : feature matrix
-        K            : number of clusters
-        random_state : random seed
-        n_init       : number of centroid initializations
+    model.fit(X)
 
-    Returns:
-        A dictionary:
-
-        {
-            "centroids": learned centroids,
-            "labels": cluster assignment for each point,
-            "objective": K-Means objective value,
-            "n_iter": number of iterations used
-        }
-
-    Notes:
-        - Use sklearn.cluster.KMeans.
-        - The K-Means objective is the sum of squared distances
-          from each point to its assigned centroid.
-        - In sklearn, this value is stored in model.inertia_.
-    """
-    pass
+    return {
+        "centroids": model.cluster_centers_,
+        "labels": model.labels_,
+        "objective": model.inertia_,
+        "n_iter": model.n_iter_
+    }
 
 
 def compute_kmeans_objective(X, centroids, labels):
-    """
-    Compute the K-Means objective manually.
+    objective = 0.0
 
-    Parameters:
-        X         : feature matrix
-        centroids : centroid matrix of shape (K, n_features)
-        labels    : assigned cluster index for each point
+    for i in range(len(X)):
+        centroid = centroids[labels[i]]
+        distance_squared = np.sum((X[i] - centroid) ** 2)
+        objective += distance_squared
 
-    Returns:
-        objective : sum of squared distances from each point
-                    to its assigned centroid
-
-    Formula:
-        objective = sum_i || x_i - c_{label_i} ||^2
-    """
-    pass
+    return objective
 
 
 # ============================================================
@@ -137,143 +68,113 @@ def compute_kmeans_objective(X, centroids, labels):
 # ============================================================
 
 def evaluate_k_values(X, k_values, random_state=0, n_init=10):
-    """
-    Run K-Means for multiple values of K.
+    objectives = []
+    relative_improvements = []
 
-    Parameters:
-        X            : feature matrix
-        k_values     : list of K values
-        random_state : random seed
-        n_init       : number of centroid initializations
+    previous_objective = None
 
-    Returns:
-        A dictionary:
+    for k in k_values:
+        result = fit_kmeans(
+            X,
+            K=k,
+            random_state=random_state,
+            n_init=n_init
+        )
 
-        {
-            "k_values": list of K values,
-            "objectives": list of objective values,
-            "relative_improvements": list of relative improvements
-        }
+        current_objective = result["objective"]
+        objectives.append(current_objective)
 
-    Relative improvement:
-        For the first K, improvement is 0.0.
-        For later K values:
+        if previous_objective is None:
+            relative_improvements.append(0.0)
+        else:
+            improvement = (
+                previous_objective - current_objective
+            ) / previous_objective
 
-        improvement = (previous_objective - current_objective) / previous_objective
+            relative_improvements.append(improvement)
 
-    Notes:
-        - Objective should usually decrease as K increases.
-        - Very large K can overfit by creating too many small clusters.
-    """
-    pass
+        previous_objective = current_objective
+
+    return {
+        "k_values": k_values,
+        "objectives": objectives,
+        "relative_improvements": relative_improvements
+    }
 
 
 def choose_elbow_k(k_values, objectives):
-    """
-    Choose K using a simple elbow heuristic.
+    if len(k_values) < 3:
+        return k_values[0]
 
-    Parameters:
-        k_values   : list of K values
-        objectives : list of K-Means objective values
+    x1, y1 = k_values[0], objectives[0]
+    x2, y2 = k_values[-1], objectives[-1]
 
-    Returns:
-        best_k : K value at the elbow point
+    max_distance = -1
+    best_k = k_values[0]
 
-    Method:
-        Use the maximum-distance-to-line heuristic.
+    for i in range(1, len(k_values) - 1):
+        x0 = k_values[i]
+        y0 = objectives[i]
 
-        1. Treat the first and last points of the objective curve
-           as endpoints of a straight line.
-        2. Compute the perpendicular distance of each intermediate point
-           from this line.
-        3. Return the K value with the largest distance.
+        numerator = abs(
+            (y2 - y1) * x0
+            - (x2 - x1) * y0
+            + x2 * y1
+            - y2 * x1
+        )
 
-    Notes:
-        - If fewer than 3 K values are given, return the first K.
-        - This is a heuristic, not a perfect rule.
-    """
-    pass
+        denominator = np.sqrt(
+            (y2 - y1) ** 2
+            + (x2 - x1) ** 2
+        )
+
+        distance = numerator / denominator
+
+        if distance > max_distance:
+            max_distance = distance
+            best_k = k_values[i]
+
+    return best_k
 
 
 def cluster_size_summary(labels, K):
-    """
-    Count how many data points belong to each cluster.
+    summary = {}
 
-    Parameters:
-        labels : cluster assignment for each point
-        K      : number of clusters
+    for i in range(K):
+        summary[i] = int(np.sum(labels == i))
 
-    Returns:
-        A dictionary:
-
-        {
-            cluster_index: number_of_points_in_that_cluster
-        }
-
-    Example:
-        labels = [0, 0, 1, 1, 1]
-        K = 2
-
-        output:
-        {
-            0: 2,
-            1: 3
-        }
-    """
-    pass
+    return summary
 
 
 def identify_outliers_by_distance(X, centroids, labels, top_n=5):
-    """
-    Identify possible outliers based on distance from assigned centroid.
+    distances = []
 
-    Parameters:
-        X         : feature matrix
-        centroids : centroid matrix
-        labels    : assigned cluster label for each point
-        top_n     : number of farthest points to return
+    for i in range(len(X)):
+        centroid = centroids[labels[i]]
+        distance_squared = np.sum((X[i] - centroid) ** 2)
+        distances.append(distance_squared)
 
-    Returns:
-        A dictionary:
+    distances = np.array(distances)
 
-        {
-            "indices": indices of top_n farthest points,
-            "distances": squared distances of those points
-        }
+    sorted_indices = np.argsort(distances)[::-1]
 
-    Notes:
-        - A point far from its assigned centroid may be unusual.
-        - Sort points by distance in descending order.
-        - Return the top_n farthest points.
-    """
-    pass
+    top_indices = sorted_indices[:top_n]
+    top_distances = distances[top_indices]
+
+    return {
+        "indices": top_indices,
+        "distances": top_distances
+    }
 
 
 def diagnose_clustering_fit(K, elbow_k):
-    """
-    Diagnose whether the chosen K is likely underfitting, good fit, or overfitting.
+    if K < elbow_k:
+        return "underfitting"
 
-    Parameters:
-        K        : chosen number of clusters
-        elbow_k  : elbow-method recommended K
+    if K == elbow_k:
+        return "good_fit"
 
-    Returns:
-        diagnosis string:
-
-        if K < elbow_k:
-            "underfitting"
-
-        if K == elbow_k:
-            "good_fit"
-
-        if K > elbow_k:
-            "overfitting"
-
-    Notes:
-        - In clustering, very small K may merge true groups.
-        - Very large K may split meaningful groups into tiny clusters.
-    """
-    pass
+    return "overfitting"
 
 
 # ============================================================
@@ -281,63 +182,64 @@ def diagnose_clustering_fit(K, elbow_k):
 # ============================================================
 
 def plot_unlabeled_data(X, feature_names=None, title="Unlabeled Data"):
-    """
-    Visualize unlabeled 2D data.
+    fig, ax = plt.subplots()
 
-    Parameters:
-        X             : feature matrix of shape (n_samples, 2)
-        feature_names : optional list of two feature names
-        title         : plot title
+    ax.scatter(X[:, 0], X[:, 1])
 
-    Returns:
-        fig, ax
+    if feature_names is not None:
+        ax.set_xlabel(feature_names[0])
+        ax.set_ylabel(feature_names[1])
 
-    Notes:
-        - This function should create a scatter plot.
-        - Do not use labels/classes because this is unsupervised learning.
-    """
-    pass
+    ax.set_title(title)
+
+    return fig, ax
 
 
-def plot_kmeans_clusters(X, labels, centroids, feature_names=None, title="K-Means Clusters"):
-    """
-    Visualize K-Means clustering results.
+def plot_kmeans_clusters(
+    X,
+    labels,
+    centroids,
+    feature_names=None,
+    title="K-Means Clusters"
+):
+    fig, ax = plt.subplots()
 
-    Parameters:
-        X             : feature matrix of shape (n_samples, 2)
-        labels        : cluster assignment for each point
-        centroids     : learned cluster centroids
-        feature_names : optional list of two feature names
-        title         : plot title
+    scatter = ax.scatter(
+        X[:, 0],
+        X[:, 1],
+        c=labels
+    )
 
-    Returns:
-        fig, ax
+    ax.scatter(
+        centroids[:, 0],
+        centroids[:, 1],
+        s=200,
+        marker='X'
+    )
 
-    Notes:
-        - Plot data points colored by cluster label.
-        - Plot centroids using a large marker.
-    """
-    pass
+    if feature_names is not None:
+        ax.set_xlabel(feature_names[0])
+        ax.set_ylabel(feature_names[1])
+
+    ax.set_title(title)
+
+    return fig, ax
 
 
-def plot_elbow_curve(k_values, objectives, title="Elbow Method"):
-    """
-    Plot K-Means objective values versus K.
+def plot_elbow_curve(
+    k_values,
+    objectives,
+    title="Elbow Method"
+):
+    fig, ax = plt.subplots()
 
-    Parameters:
-        k_values   : list of K values
-        objectives : list of objective values
-        title      : plot title
+    ax.plot(k_values, objectives, marker='o')
 
-    Returns:
-        fig, ax
+    ax.set_xlabel("Number of clusters K")
+    ax.set_ylabel("Objective value")
+    ax.set_title(title)
 
-    Notes:
-        - X-axis should show K.
-        - Y-axis should show objective value.
-        - This plot helps identify the elbow point.
-    """
-    pass
+    return fig, ax
 
 
 if __name__ == "__main__":
